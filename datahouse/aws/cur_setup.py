@@ -10,25 +10,28 @@ logger = logging.getLogger(__name__)
 
 
 def build_bucket_policy(*, bucket: str, account_id: str, region: str) -> str:
-    """AWS Billing 서비스가 PutObject 가능하도록 하는 버킷 정책 JSON 문자열."""
+    """CUR 2.0 (bcm-data-exports)가 PutObject 가능하도록 하는 버킷 정책 JSON.
+
+    Legacy CUR 1.0의 principal은 `billingreports.amazonaws.com`이지만
+    CUR 2.0 / Data Exports는 `bcm-data-exports.amazonaws.com`을 쓴다.
+    """
     policy = {
         "Version": "2012-10-17",
         "Statement": [
             {
-                "Sid": "AllowBillingDelivery",
+                "Sid": "AllowDataExportsDelivery",
                 "Effect": "Allow",
-                "Principal": {"Service": "billingreports.amazonaws.com"},
+                "Principal": {"Service": "bcm-data-exports.amazonaws.com"},
                 "Action": [
-                    "s3:GetBucketAcl",
-                    "s3:GetBucketPolicy",
                     "s3:PutObject",
+                    "s3:GetBucketPolicy",
                 ],
                 "Resource": [
                     f"arn:aws:s3:::{bucket}",
                     f"arn:aws:s3:::{bucket}/*",
                 ],
                 "Condition": {
-                    "StringEquals": {
+                    "StringLike": {
                         "aws:SourceAccount": account_id,
                         "aws:SourceArn": (
                             f"arn:aws:bcm-data-exports:{region}:{account_id}:export/*"
@@ -41,6 +44,46 @@ def build_bucket_policy(*, bucket: str, account_id: str, region: str) -> str:
     return json.dumps(policy)
 
 
+def _table_properties(
+    *,
+    time_granularity: str,
+    include_resources: bool,
+    include_split_cost_allocation: bool,
+) -> dict[str, str]:
+    return {
+        "TIME_GRANULARITY": time_granularity,
+        "INCLUDE_RESOURCES": "TRUE" if include_resources else "FALSE",
+        "INCLUDE_SPLIT_COST_ALLOCATION_DATA": (
+            "TRUE" if include_split_cost_allocation else "FALSE"
+        ),
+        "INCLUDE_MANUAL_DISCOUNT_COMPATIBILITY": "FALSE",
+    }
+
+
+def discover_cur_columns(
+    exports_client: Any,
+    *,
+    time_granularity: str,
+    include_resources: bool,
+    include_split_cost_allocation: bool,
+) -> list[str]:
+    """COST_AND_USAGE_REPORT 테이블의 컬럼 이름 목록을 AWS에서 조회.
+
+    TableProperties에 따라 컬럼 구성이 달라지므로 우리 설정과 동일한
+    properties로 get_table을 호출한다.
+    """
+    props = _table_properties(
+        time_granularity=time_granularity,
+        include_resources=include_resources,
+        include_split_cost_allocation=include_split_cost_allocation,
+    )
+    resp = exports_client.get_table(
+        TableName="COST_AND_USAGE_REPORT",
+        TableProperties=props,
+    )
+    return [col["Name"] for col in resp["Schema"]]
+
+
 def build_export_definition(
     *,
     export_name: str,
@@ -50,21 +93,22 @@ def build_export_definition(
     time_granularity: str,
     include_resources: bool,
     include_split_cost_allocation: bool,
+    columns: list[str],
 ) -> dict:
+    if not columns:
+        raise ValueError("columns must be non-empty")
+    select = ", ".join(columns)
     return {
         "Name": export_name,
         "Description": "datahouse CUR 2.0 export",
         "DataQuery": {
-            "QueryStatement": "SELECT * FROM COST_AND_USAGE_REPORT",
+            "QueryStatement": f"SELECT {select} FROM COST_AND_USAGE_REPORT",
             "TableConfigurations": {
-                "COST_AND_USAGE_REPORT": {
-                    "TIME_GRANULARITY": time_granularity,
-                    "INCLUDE_RESOURCES": "TRUE" if include_resources else "FALSE",
-                    "INCLUDE_SPLIT_COST_ALLOCATION_DATA": (
-                        "TRUE" if include_split_cost_allocation else "FALSE"
-                    ),
-                    "INCLUDE_MANUAL_DISCOUNT_COMPATIBILITY": "FALSE",
-                }
+                "COST_AND_USAGE_REPORT": _table_properties(
+                    time_granularity=time_granularity,
+                    include_resources=include_resources,
+                    include_split_cost_allocation=include_split_cost_allocation,
+                )
             },
         },
         "DestinationConfigurations": {
@@ -152,6 +196,13 @@ def ensure_cur_export(
     include_split_cost_allocation: bool,
 ) -> str:
     """export가 없으면 생성, 있으면 비교 후 update 또는 no-op. ExportArn 반환."""
+    columns = discover_cur_columns(
+        exports_client,
+        time_granularity=time_granularity,
+        include_resources=include_resources,
+        include_split_cost_allocation=include_split_cost_allocation,
+    )
+    logger.info("Discovered %d CUR columns", len(columns))
     desired = build_export_definition(
         export_name=export_name,
         bucket=bucket,
@@ -160,6 +211,7 @@ def ensure_cur_export(
         time_granularity=time_granularity,
         include_resources=include_resources,
         include_split_cost_allocation=include_split_cost_allocation,
+        columns=columns,
     )
 
     existing = find_existing_export(exports_client, export_name)
