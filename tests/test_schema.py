@@ -8,37 +8,33 @@ from datahouse.clickhouse.schema import (
 
 
 def test_map_cur_type_basic() -> None:
-    assert map_cur_type("DateTime", "any_col") == "DateTime64(3)"
-    assert map_cur_type("OptionalDateTime", "any_col") == "Nullable(DateTime64(3))"
-    assert map_cur_type("BigDecimal", "any_col") == "Decimal(38, 12)"
-    assert map_cur_type("OptionalBigDecimal", "any_col") == "Nullable(Decimal(38, 12))"
-    assert map_cur_type("Interval", "any_col") == "String"
-    assert map_cur_type("Json", "any_col") == "String"
-    assert map_cur_type("Map<String,String>", "resource_tags") == "Map(String, String)"
+    assert map_cur_type("timestamp", "bill_invoice_id") == "Nullable(DateTime64(3))"
+    assert map_cur_type("double", "line_item_unblended_cost") == "Nullable(Float64)"
+    assert map_cur_type("map", "resource_tags") == "Map(String, String)"
+
+
+def test_map_cur_type_timestamp_in_order_by_is_non_nullable() -> None:
+    assert map_cur_type("timestamp", "line_item_usage_start_date") == "DateTime64(3)"
 
 
 def test_map_cur_type_string_low_cardinality() -> None:
     for col in LOW_CARDINALITY_COLUMNS:
-        assert map_cur_type("String", col) == "LowCardinality(String)"
+        assert map_cur_type("string", col) == "LowCardinality(String)"
 
 
 def test_map_cur_type_string_normal() -> None:
-    assert map_cur_type("String", "line_item_resource_id") == "String"
-
-
-def test_map_cur_type_optional_string_collapses_to_string() -> None:
-    assert map_cur_type("OptionalString", "anything") == "String"
+    assert map_cur_type("string", "line_item_resource_id") == "String"
 
 
 def test_manifest_to_ddl_contains_partition_and_engine() -> None:
     manifest = {
-        "dataColumns": [
-            {"name": "line_item_usage_start_date", "type": "DateTime"},
-            {"name": "line_item_usage_account_id", "type": "String"},
-            {"name": "line_item_product_code", "type": "String"},
-            {"name": "line_item_resource_id", "type": "OptionalString"},
-            {"name": "line_item_unblended_cost", "type": "BigDecimal"},
-            {"name": "resource_tags", "type": "Map<String,String>"},
+        "columns": [
+            {"name": "line_item_usage_start_date", "type": "timestamp"},
+            {"name": "line_item_usage_account_id", "type": "string"},
+            {"name": "line_item_product_code", "type": "string"},
+            {"name": "line_item_resource_id", "type": "string"},
+            {"name": "line_item_unblended_cost", "type": "double"},
+            {"name": "resource_tags", "type": "map"},
         ]
     }
     ddl = manifest_to_ddl(manifest, "aws_billing", "cur_line_items")
@@ -48,7 +44,7 @@ def test_manifest_to_ddl_contains_partition_and_engine() -> None:
     assert "`line_item_usage_account_id` LowCardinality(String)" in ddl
     assert "`line_item_product_code` LowCardinality(String)" in ddl
     assert "`line_item_resource_id` String" in ddl
-    assert "`line_item_unblended_cost` Decimal(38, 12)" in ddl
+    assert "`line_item_unblended_cost` Nullable(Float64)" in ddl
     assert "`resource_tags` Map(String, String)" in ddl
     assert "`_billing_period` String" in ddl
     assert "`_ingested_at` DateTime64(3) DEFAULT now64(3)" in ddl
@@ -58,6 +54,6 @@ def test_manifest_to_ddl_contains_partition_and_engine() -> None:
 
 
 def test_manifest_to_ddl_unknown_type_raises() -> None:
-    manifest = {"dataColumns": [{"name": "x", "type": "Spaceship"}]}
+    manifest = {"columns": [{"name": "x", "type": "Spaceship"}]}
     with pytest.raises(ValueError, match="Spaceship"):
         manifest_to_ddl(manifest, "db", "t")

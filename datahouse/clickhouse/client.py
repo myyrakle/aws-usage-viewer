@@ -9,12 +9,13 @@ from datahouse.config import ClickhouseConfig
 
 
 def get_client(cfg: ClickhouseConfig) -> Client:
+    # Don't bind to cfg.database — it may not exist yet on first run.
+    # All queries qualify database.table explicitly; ensure_database creates it.
     return clickhouse_connect.get_client(
         host=cfg.host,
         port=cfg.port,
         username=cfg.user,
         password=cfg.password,
-        database=cfg.database,
         secure=cfg.secure,
     )
 

@@ -24,34 +24,30 @@ _ORDER_BY_COLUMNS = (
 
 
 def map_cur_type(cur_type: str, column_name: str) -> str:
-    """CUR 2.0 manifest 타입을 ClickHouse 타입으로 매핑."""
-    if cur_type == "String":
+    """CUR 2.0 manifest 타입을 ClickHouse 타입으로 매핑.
+
+    Actual CUR 2.0 manifest emits lowercase types: string, timestamp, double, map.
+    AWS emits empty strings (not NULL) for missing string fields.
+    """
+    if cur_type == "string":
         if column_name in LOW_CARDINALITY_COLUMNS:
             return "LowCardinality(String)"
         return "String"
-    if cur_type == "OptionalString":
-        return "String"  # NULL을 빈 문자열로
-    if cur_type == "DateTime":
-        return "DateTime64(3)"
-    if cur_type == "OptionalDateTime":
+    if cur_type == "timestamp":
+        if column_name in _ORDER_BY_COLUMNS:
+            return "DateTime64(3)"
         return "Nullable(DateTime64(3))"
-    if cur_type == "BigDecimal":
-        return "Decimal(38, 12)"
-    if cur_type == "OptionalBigDecimal":
-        return "Nullable(Decimal(38, 12))"
-    if cur_type == "Interval":
-        return "String"
-    if cur_type == "Json":
-        return "String"
-    if cur_type == "Map<String,String>":
+    if cur_type == "double":
+        return "Nullable(Float64)"
+    if cur_type == "map":
         return "Map(String, String)"
     raise ValueError(f"Unknown CUR type: {cur_type!r}")
 
 
 def manifest_to_ddl(manifest: dict, database: str, table: str) -> str:
-    columns = manifest.get("dataColumns", [])
+    columns = manifest.get("columns", [])
     if not columns:
-        raise ValueError("manifest has no dataColumns")
+        raise ValueError("manifest has no columns")
 
     column_lines: list[str] = []
     for col in columns:
