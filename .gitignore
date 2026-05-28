@@ -222,3 +222,5 @@ docs/superpowers
 # datahouse runtime
 config.toml
 .datahouse-state.json
+ch-data/
+metabase-data/

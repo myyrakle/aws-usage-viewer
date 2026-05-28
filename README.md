@@ -74,18 +74,102 @@ docker run -d --name datahouse-ch \
   clickhouse/clickhouse-server:latest
 ```
 
-쿼리 예시:
+## Metabase 시각화
+
+ClickHouse는 이미 위에서 띄웠다고 가정. Metabase만 compose로 띄움:
 
 ```bash
-docker exec -it datahouse-ch clickhouse-client --query "
-  SELECT line_item_product_code, sum(line_item_unblended_cost) AS cost
-  FROM aws_billing.cur_line_items
-  WHERE _billing_period = '2026-04'
-  GROUP BY line_item_product_code
-  ORDER BY cost DESC
-  LIMIT 10
-"
+docker compose up -d
 ```
+
+`http://localhost:3000`에서 첫 접속 시 관리자 계정 생성. 설정 파일은 `./metabase-data/`에 영속됨 (gitignore).
+
+### Metabase에 ClickHouse 연결
+
+1. 초기 셋업에서 "I'll add my data later" 선택
+2. Admin → Databases → Add database
+3. 다음과 같이 입력:
+   - **Database type**: ClickHouse
+   - **Host**: `host.docker.internal` (Metabase 컨테이너 → 호스트의 ClickHouse)
+   - **Port**: `8123`
+   - **Database name**: `aws_billing`
+   - **Username**: `default`, **Password**: 비움
+
+> Metabase v0.49+는 ClickHouse 드라이버를 번들로 포함. 별도 설치 불필요.
+
+### 추천 쿼리 (Metabase Native SQL에 그대로 붙여넣기)
+
+**1. 이번 달 총 비용**
+
+```sql
+SELECT sum(line_item_unblended_cost) AS total_cost
+FROM aws_billing.cur_line_items
+WHERE _billing_period = formatDateTime(now(), '%Y-%m')
+  AND line_item_line_item_type != 'Tax';
+```
+
+**2. 서비스별 비용 Top 10 (이번 달)**
+
+```sql
+SELECT line_item_product_code AS service,
+       sum(line_item_unblended_cost) AS cost
+FROM aws_billing.cur_line_items
+WHERE _billing_period = formatDateTime(now(), '%Y-%m')
+GROUP BY service
+ORDER BY cost DESC
+LIMIT 10;
+```
+
+**3. 일별 비용 추이**
+
+```sql
+SELECT toDate(line_item_usage_start_date) AS day,
+       sum(line_item_unblended_cost) AS cost
+FROM aws_billing.cur_line_items
+WHERE _billing_period = formatDateTime(now(), '%Y-%m')
+GROUP BY day
+ORDER BY day;
+```
+
+**4. 계정별 비용 (Organizations 환경)**
+
+```sql
+SELECT line_item_usage_account_id AS account,
+       sum(line_item_unblended_cost) AS cost
+FROM aws_billing.cur_line_items
+WHERE _billing_period = formatDateTime(now(), '%Y-%m')
+GROUP BY account
+ORDER BY cost DESC;
+```
+
+**5. 리소스별 비용 Top 20**
+
+```sql
+SELECT line_item_resource_id AS resource,
+       line_item_product_code AS service,
+       sum(line_item_unblended_cost) AS cost
+FROM aws_billing.cur_line_items
+WHERE _billing_period = formatDateTime(now(), '%Y-%m')
+  AND line_item_resource_id != ''
+GROUP BY resource, service
+ORDER BY cost DESC
+LIMIT 20;
+```
+
+**6. 태그(`user_Project`)별 비용 — Map 컬럼 예시**
+
+```sql
+SELECT resource_tags['user_Project'] AS project,
+       sum(line_item_unblended_cost) AS cost
+FROM aws_billing.cur_line_items
+WHERE _billing_period = formatDateTime(now(), '%Y-%m')
+  AND resource_tags['user_Project'] != ''
+GROUP BY project
+ORDER BY cost DESC;
+```
+
+> Map 컬럼(`resource_tags`, `cost_category`, `product`, `discount`)은
+> Metabase의 GUI Question Builder로는 다루기 어색해서 SQL Question 권장.
 
 ## 테스트
 
