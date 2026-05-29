@@ -1,11 +1,11 @@
 [aws]
-profile = "chainshift-dev"
+profile = "*-dev"
 region = "us-east-1"
 account_id = "954175477480"
 
 [cur]
-bucket_name = "chainshift-dev-cur-954175477480"
-export_name = "datahouse-cur-export"
+bucket_name = "*-dev-cur-954175477480"
+export_name = "cur-export"
 prefix = "cur2"
 time_granularity = "HOURLY"
 include_resources = true
@@ -21,4 +21,4 @@ table = "cur_line_items"
 secure = false
 
 [state]
-path = ".datahouse-state.json"
+path = ".curhouse-state.json"
