@@ -99,10 +99,14 @@ python3 scripts/provision_metabase.py
    - host=`host.docker.internal`, port=`8123`, db=`aws_billing` (env로 오버라이드 가능)
 3. Native SQL Question 7개 upsert (이름으로 매칭)
 4. 대시보드 `AWS 비용 대시보드` upsert
-   - 상단 필터:
-     - `기간` — date range picker (Today / This week / This month / Last month / Past 7 days / Past 30 days / Custom range). 디폴트 `past30days`. `line_item_usage_start_date` 컬럼 기준.
+   - 상단 필터 (모두 옵셔널, 디폴트 없음, AND 결합):
+     - `단일 날짜` — 캘린더에서 하루 선택 (`line_item_usage_start_date` 기준)
+     - `기간 (범위)` — 캘린더에서 start~end 선택 (같은 컬럼)
+     - `월` — `_billing_period` (`YYYY-MM`) 드롭다운
      - `서비스` — `line_item_product_code` 드롭다운
-   - 모든 카드에 두 필터 매핑
+   - 모든 카드에 네 필터 매핑
+
+   > 세 날짜 필터는 같은 시간축을 다른 입력 방식으로 표현. 동시에 두 개 켜면 AND라 의도와 다르게 좁아질 수 있어서, 보통은 **하나만** 사용.
 5. 필터 값 캐시 재스캔 (`POST /api/database/{id}/rescan_values`)
 
 OSS Metabase는 공식 serialization이 막혀있어서 이 스크립트가 git에 올라가는 "단일 진실원"이에요. GUI에서 카드를 추가/수정해도 다음 스크립트 실행 시 덮어쓰여집니다.
