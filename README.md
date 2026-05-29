@@ -82,94 +82,58 @@ ClickHouse는 이미 위에서 띄웠다고 가정. Metabase만 compose로 띄�
 docker compose up -d
 ```
 
-`http://localhost:3000`에서 첫 접속 시 관리자 계정 생성. 설정 파일은 `./metabase-data/`에 영속됨 (gitignore).
+`http://localhost:3000` 접속. 첫 실행이면 관리자 계정만 잡혀있고 비어있는 상태. 설정은 `./metabase-data/`에 영속 (gitignore).
 
-### Metabase에 ClickHouse 연결
+### 데이터소스 + 대시보드 자동 프로비저닝
 
-1. 초기 셋업에서 "I'll add my data later" 선택
-2. Admin → Databases → Add database
-3. 다음과 같이 입력:
-   - **Database type**: ClickHouse
-   - **Host**: `host.docker.internal` (Metabase 컨테이너 → 호스트의 ClickHouse)
-   - **Port**: `8123`
-   - **Database name**: `aws_billing`
-   - **Username**: `default`, **Password**: 비움
+```bash
+MB_ADMIN_EMAIL=you@example.com \
+MB_ADMIN_PASSWORD='YourStrong#Pass1' \
+python3 scripts/provision_metabase.py
+```
+
+스크립트가 멱등(idempotent)하게 수행하는 작업:
+
+1. 첫 실행이면 `/api/setup`으로 어드민 계정 생성, 아니면 로그인
+2. ClickHouse 데이터소스 `datahouse-clickhouse` 등록/갱신
+   - host=`host.docker.internal`, port=`8123`, db=`aws_billing` (env로 오버라이드 가능)
+3. Native SQL Question 7개 upsert (이름으로 매칭)
+4. 대시보드 `AWS 비용 대시보드` upsert
+   - 상단 필터: `월 (Billing Period)`, `서비스`
+   - 모든 카드에 두 필터 매핑
+5. 필터 값 캐시 재스캔 (`POST /api/database/{id}/rescan_values`)
+
+OSS Metabase는 공식 serialization이 막혀있어서 이 스크립트가 git에 올라가는 "단일 진실원"이에요. GUI에서 카드를 추가/수정해도 다음 스크립트 실행 시 덮어쓰여집니다.
+
+#### 환경변수
+
+| 변수 | 기본값 | 비고 |
+|---|---|---|
+| `MB_URL` | `http://localhost:3000` | |
+| `MB_ADMIN_EMAIL` | (필수) | |
+| `MB_ADMIN_PASSWORD` | (필수) | 첫 실행 시 Metabase 정책상 강비번 필요 |
+| `CH_HOST` | `host.docker.internal` | Linux도 `extra_hosts` 매핑으로 동작 |
+| `CH_PORT` | `8123` | |
+| `CH_DB` | `aws_billing` | |
+| `CH_USER` | `default` | |
+| `CH_PASSWORD` | (빈값) | |
 
 > Metabase v0.49+는 ClickHouse 드라이버를 번들로 포함. 별도 설치 불필요.
 
-### 추천 쿼리 (Metabase Native SQL에 그대로 붙여넣기)
+### 필터값 수동 갱신
 
-**1. 이번 달 총 비용**
+`datahouse sync`로 새 billing period가 들어왔는데 대시보드 드롭다운에 안 보이면:
 
-```sql
-SELECT sum(line_item_unblended_cost) AS total_cost
-FROM aws_billing.cur_line_items
-WHERE _billing_period = formatDateTime(now(), '%Y-%m')
-  AND line_item_line_item_type != 'Tax';
+```bash
+python3 scripts/provision_metabase.py  # rescan_values 포함
 ```
 
-**2. 서비스별 비용 Top 10 (이번 달)**
+또는 단독으로:
 
-```sql
-SELECT line_item_product_code AS service,
-       sum(line_item_unblended_cost) AS cost
-FROM aws_billing.cur_line_items
-WHERE _billing_period = formatDateTime(now(), '%Y-%m')
-GROUP BY service
-ORDER BY cost DESC
-LIMIT 10;
+```bash
+curl -X POST $MB_URL/api/database/<db_id>/rescan_values \
+  -H "X-Metabase-Session: <session>"
 ```
-
-**3. 일별 비용 추이**
-
-```sql
-SELECT toDate(line_item_usage_start_date) AS day,
-       sum(line_item_unblended_cost) AS cost
-FROM aws_billing.cur_line_items
-WHERE _billing_period = formatDateTime(now(), '%Y-%m')
-GROUP BY day
-ORDER BY day;
-```
-
-**4. 계정별 비용 (Organizations 환경)**
-
-```sql
-SELECT line_item_usage_account_id AS account,
-       sum(line_item_unblended_cost) AS cost
-FROM aws_billing.cur_line_items
-WHERE _billing_period = formatDateTime(now(), '%Y-%m')
-GROUP BY account
-ORDER BY cost DESC;
-```
-
-**5. 리소스별 비용 Top 20**
-
-```sql
-SELECT line_item_resource_id AS resource,
-       line_item_product_code AS service,
-       sum(line_item_unblended_cost) AS cost
-FROM aws_billing.cur_line_items
-WHERE _billing_period = formatDateTime(now(), '%Y-%m')
-  AND line_item_resource_id != ''
-GROUP BY resource, service
-ORDER BY cost DESC
-LIMIT 20;
-```
-
-**6. 태그(`user_Project`)별 비용 — Map 컬럼 예시**
-
-```sql
-SELECT resource_tags['user_Project'] AS project,
-       sum(line_item_unblended_cost) AS cost
-FROM aws_billing.cur_line_items
-WHERE _billing_period = formatDateTime(now(), '%Y-%m')
-  AND resource_tags['user_Project'] != ''
-GROUP BY project
-ORDER BY cost DESC;
-```
-
-> Map 컬럼(`resource_tags`, `cost_category`, `product`, `discount`)은
-> Metabase의 GUI Question Builder로는 다루기 어색해서 SQL Question 권장.
 
 ## 테스트
 
