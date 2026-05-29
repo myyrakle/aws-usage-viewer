@@ -153,16 +153,16 @@ def _field_id(session: str, db_id: int, table: str, column: str) -> int:
     raise RuntimeError(f"field {table}.{column} not found in db {db_id}")
 
 
-def build_template_tags(period_field: int, service_field: int) -> dict:
+def build_template_tags(usage_date_field: int, service_field: int) -> dict:
     return {
-        "period": {
+        "date_range": {
             "id": str(uuid.uuid4()),
-            "name": "period",
-            "display-name": "Billing Period",
+            "name": "date_range",
+            "display-name": "기간",
             "type": "dimension",
-            "dimension": ["field", period_field, None],
-            "widget-type": "string/=",
-            "default": None,
+            "dimension": ["field", usage_date_field, {"base-type": "type/DateTime"}],
+            "widget-type": "date/all-options",
+            "default": "past30days",
         },
         "service": {
             "id": str(uuid.uuid4()),
@@ -180,13 +180,13 @@ def card_specs() -> list[dict]:
     """Each card definition: name, display, sql, viz_settings, dashboard layout."""
     cards = [
         {
-            "name": "이번 달 총 비용",
+            "name": "총 사용 비용",
             "display": "scalar",
             "sql": (
                 "SELECT round(sum(line_item_unblended_cost), 2) AS usage_cost\n"
                 "FROM aws_billing.cur_line_items\n"
                 f"WHERE {COMMON_FILTER}\n"
-                "  [[AND {{period}}]]\n"
+                "  [[AND {{date_range}}]]\n"
                 "  [[AND {{service}}]]"
             ),
             "viz": {"column_settings": {json.dumps(["name", "usage_cost"]): USD_FMT}},
@@ -200,7 +200,7 @@ def card_specs() -> list[dict]:
                 "       round(sum(line_item_unblended_cost), 2) AS cost\n"
                 "FROM aws_billing.cur_line_items\n"
                 f"WHERE {COMMON_FILTER}\n"
-                "  [[AND {{period}}]]\n"
+                "  [[AND {{date_range}}]]\n"
                 "  [[AND {{service}}]]\n"
                 "GROUP BY service\n"
                 "ORDER BY cost DESC\n"
@@ -221,7 +221,7 @@ def card_specs() -> list[dict]:
                 "       round(sum(line_item_unblended_cost), 2) AS cost\n"
                 "FROM aws_billing.cur_line_items\n"
                 f"WHERE {COMMON_FILTER}\n"
-                "  [[AND {{period}}]]\n"
+                "  [[AND {{date_range}}]]\n"
                 "  [[AND {{service}}]]\n"
                 "GROUP BY day\n"
                 "ORDER BY day"
@@ -241,7 +241,7 @@ def card_specs() -> list[dict]:
                 "       round(sum(line_item_unblended_cost), 2) AS cost\n"
                 "FROM aws_billing.cur_line_items\n"
                 f"WHERE {COMMON_FILTER}\n"
-                "  [[AND {{period}}]]\n"
+                "  [[AND {{date_range}}]]\n"
                 "  [[AND {{service}}]]\n"
                 "GROUP BY account\n"
                 "ORDER BY cost DESC"
@@ -263,7 +263,7 @@ def card_specs() -> list[dict]:
                 "FROM aws_billing.cur_line_items\n"
                 f"WHERE {COMMON_FILTER}\n"
                 "  AND line_item_resource_id != ''\n"
-                "  [[AND {{period}}]]\n"
+                "  [[AND {{date_range}}]]\n"
                 "  [[AND {{service}}]]\n"
                 "GROUP BY resource, service\n"
                 "ORDER BY cost DESC\n"
@@ -281,7 +281,7 @@ def card_specs() -> list[dict]:
                 "FROM aws_billing.cur_line_items\n"
                 f"WHERE {COMMON_FILTER}\n"
                 "  AND resource_tags['user_Project'] != ''\n"
-                "  [[AND {{period}}]]\n"
+                "  [[AND {{date_range}}]]\n"
                 "  [[AND {{service}}]]\n"
                 "GROUP BY project\n"
                 "ORDER BY cost DESC"
@@ -303,7 +303,7 @@ def card_specs() -> list[dict]:
                 "       round(sum(line_item_unblended_cost), 2) AS cost\n"
                 "FROM aws_billing.cur_line_items\n"
                 f"WHERE {COMMON_FILTER}\n"
-                "  [[AND {{period}}]]\n"
+                "  [[AND {{date_range}}]]\n"
                 "  [[AND {{service}}]]\n"
                 "GROUP BY usage_type, operation\n"
                 "ORDER BY cost DESC\n"
@@ -359,15 +359,16 @@ def upsert_dashboard(session: str, card_ids: list[int], layouts: list[tuple]) ->
         dash_id = created["id"]
         print(f"  dashboard[{dash_id}] {DASHBOARD_NAME!r} created")
 
-    period_pid = str(uuid.uuid4())[:8]
+    date_pid = str(uuid.uuid4())[:8]
     service_pid = str(uuid.uuid4())[:8]
     parameters = [
         {
-            "id": period_pid,
-            "name": "월 (Billing Period)",
-            "slug": "period",
-            "type": "string/=",
-            "sectionId": "string",
+            "id": date_pid,
+            "name": "기간",
+            "slug": "date_range",
+            "type": "date/all-options",
+            "sectionId": "date",
+            "default": "past30days",
         },
         {
             "id": service_pid,
@@ -389,9 +390,9 @@ def upsert_dashboard(session: str, card_ids: list[int], layouts: list[tuple]) ->
             "size_y": sy,
             "parameter_mappings": [
                 {
-                    "parameter_id": period_pid,
+                    "parameter_id": date_pid,
                     "card_id": cid,
-                    "target": ["dimension", ["template-tag", "period"]],
+                    "target": ["dimension", ["template-tag", "date_range"]],
                 },
                 {
                     "parameter_id": service_pid,
@@ -418,11 +419,11 @@ def main() -> int:
     db_id = upsert_database(session)
     _wait_for_sync(session, db_id)
 
-    period_field = _field_id(session, db_id, "cur_line_items", "_billing_period")
+    usage_date_field = _field_id(session, db_id, "cur_line_items", "line_item_usage_start_date")
     service_field = _field_id(session, db_id, "cur_line_items", "line_item_product_code")
-    print(f"  fields: _billing_period={period_field}, line_item_product_code={service_field}")
+    print(f"  fields: line_item_usage_start_date={usage_date_field}, line_item_product_code={service_field}")
 
-    tags = build_template_tags(period_field, service_field)
+    tags = build_template_tags(usage_date_field, service_field)
     specs = card_specs()
 
     card_ids = [upsert_card(session, db_id, tags, s) for s in specs]

@@ -99,7 +99,9 @@ python3 scripts/provision_metabase.py
    - host=`host.docker.internal`, port=`8123`, db=`aws_billing` (env로 오버라이드 가능)
 3. Native SQL Question 7개 upsert (이름으로 매칭)
 4. 대시보드 `AWS 비용 대시보드` upsert
-   - 상단 필터: `월 (Billing Period)`, `서비스`
+   - 상단 필터:
+     - `기간` — date range picker (Today / This week / This month / Last month / Past 7 days / Past 30 days / Custom range). 디폴트 `past30days`. `line_item_usage_start_date` 컬럼 기준.
+     - `서비스` — `line_item_product_code` 드롭다운
    - 모든 카드에 두 필터 매핑
 5. 필터 값 캐시 재스캔 (`POST /api/database/{id}/rescan_values`)
 
