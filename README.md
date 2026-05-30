@@ -1,4 +1,4 @@
-# datahouse
+# curhouse
 
 AWS Cost and Usage Report 2.0 데이터를 로컬 ClickHouse에 적재하는 CLI.
 
