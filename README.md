@@ -1,6 +1,10 @@
 # curhouse
 
-AWS Cost and Usage Report 2.0 데이터를 로컬 ClickHouse에 적재하는 CLI.
+AWS Cost and Usage Report 2.0 데이터를 시각화하기 위한 툴체인
+
+## 구성요소
+- CUR를 Setup하고 ClickHouse에 적재하는 CLI
+- 시각화용 metabase 구성
 
 ## 요구사항
 
