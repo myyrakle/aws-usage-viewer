@@ -1,6 +1,6 @@
 import pytest
 
-from datahouse.cli import build_parser
+from curhouse.cli import build_parser
 
 
 def test_setup_subcommand_parses() -> None:

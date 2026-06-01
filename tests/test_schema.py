@@ -1,6 +1,6 @@
 import pytest
 
-from datahouse.clickhouse.schema import (
+from curhouse.clickhouse.schema import (
     LOW_CARDINALITY_COLUMNS,
     map_cur_type,
     manifest_to_ddl,

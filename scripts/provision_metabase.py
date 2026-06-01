@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Provision Metabase with the datahouse CUR data source, saved questions,
+"""Provision Metabase with the curhouse CUR data source, saved questions,
 and the AWS cost dashboard. Idempotent — safe to re-run.
 
 Reads credentials from env vars:
@@ -7,7 +7,7 @@ Reads credentials from env vars:
   MB_ADMIN_EMAIL    (required)
   MB_ADMIN_PASSWORD (required; min 8 chars on first run)
   MB_FIRST_NAME     (default: admin)
-  MB_LAST_NAME      (default: datahouse)
+  MB_LAST_NAME      (default: curhouse)
   CH_HOST           (default: host.docker.internal)
   CH_PORT           (default: 8123)
   CH_DB             (default: aws_billing)
@@ -31,7 +31,7 @@ MB_URL = os.environ.get("MB_URL", "http://localhost:3000").rstrip("/")
 MB_EMAIL = os.environ.get("MB_ADMIN_EMAIL")
 MB_PASSWORD = os.environ.get("MB_ADMIN_PASSWORD")
 MB_FIRST = os.environ.get("MB_FIRST_NAME", "admin")
-MB_LAST = os.environ.get("MB_LAST_NAME", "datahouse")
+MB_LAST = os.environ.get("MB_LAST_NAME", "curhouse")
 
 CH_HOST = os.environ.get("CH_HOST", "host.docker.internal")
 CH_PORT = int(os.environ.get("CH_PORT", "8123"))
@@ -39,7 +39,7 @@ CH_DB = os.environ.get("CH_DB", "aws_billing")
 CH_USER = os.environ.get("CH_USER", "default")
 CH_PASSWORD = os.environ.get("CH_PASSWORD", "")
 
-DB_NAME = "datahouse-clickhouse"
+DB_NAME = "curhouse-clickhouse"
 DASHBOARD_NAME = "AWS 비용 대시보드"
 
 COMMON_FILTER = "line_item_line_item_type NOT IN ('Credit', 'Tax', 'Refund')"
@@ -86,9 +86,9 @@ def authenticate() -> str:
                 "last_name": MB_LAST,
                 "email": MB_EMAIL,
                 "password": MB_PASSWORD,
-                "site_name": "datahouse",
+                "site_name": "curhouse",
             },
-            "prefs": {"site_name": "datahouse", "allow_tracking": "false"},
+            "prefs": {"site_name": "curhouse", "allow_tracking": "false"},
         })
         return resp["id"]
 
@@ -388,7 +388,7 @@ def upsert_dashboard(session: str, card_ids: list[int], layouts: list[tuple]) ->
     else:
         created = _request("POST", "/api/dashboard", session, {
             "name": DASHBOARD_NAME,
-            "description": "CUR 2.0 기반 월별 비용 분석 (datahouse)",
+            "description": "CUR 2.0 기반 월별 비용 분석 (curhouse)",
         })
         dash_id = created["id"]
         print(f"  dashboard[{dash_id}] {DASHBOARD_NAME!r} created")

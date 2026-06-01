@@ -65,7 +65,7 @@ def load_config(path: Path | str) -> Config:
             f"time_granularity must be one of {ALLOWED_GRANULARITIES}, got {granularity!r}"
         )
 
-    ch_password = os.environ.get("DATAHOUSE_CH_PASSWORD", data["clickhouse"]["password"])
+    ch_password = os.environ.get("CURHOUSE_CH_PASSWORD", data["clickhouse"]["password"])
 
     return Config(
         aws=AwsConfig(**data["aws"]),

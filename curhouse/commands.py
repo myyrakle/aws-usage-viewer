@@ -5,26 +5,26 @@ import datetime as _dt
 import logging
 import sys
 
-from datahouse.aws.cur_setup import (
+from curhouse.aws.cur_setup import (
     ensure_bucket_policy,
     ensure_cur_export,
     ensure_s3_bucket,
 )
-from datahouse.aws.s3_manifests import (
+from curhouse.aws.s3_manifests import (
     ManifestInfo,
     get_manifest_json,
     list_manifests,
 )
-from datahouse.aws.session import get_session
-from datahouse.clickhouse.client import (
+from curhouse.aws.session import get_session
+from curhouse.clickhouse.client import (
     ensure_database,
     get_client,
     list_table_columns,
 )
-from datahouse.clickhouse.loader import build_s3_url, reload_partition
-from datahouse.clickhouse.schema import ddl_hash, manifest_to_ddl
-from datahouse.config import Config
-from datahouse.state import ManifestRecord, State, load_state, save_state
+from curhouse.clickhouse.loader import build_s3_url, reload_partition
+from curhouse.clickhouse.schema import ddl_hash, manifest_to_ddl
+from curhouse.config import Config
+from curhouse.state import ManifestRecord, State, load_state, save_state
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ def cmd_setup(cfg: Config, _args: argparse.Namespace) -> int:
         f"✓ Bucket policy: applied\n"
         f"✓ CUR export: {cfg.cur.export_name} ({arn})\n"
         "ℹ Initial data delivery may take up to 24 hours.\n"
-        f"ℹ Run `datahouse sync` after data appears in "
+        f"ℹ Run `curhouse sync` after data appears in "
         f"s3://{cfg.cur.bucket_name}/{cfg.cur.prefix}/{cfg.cur.export_name}/data/"
     )
     return 0
@@ -190,7 +190,7 @@ def cmd_sync(cfg: Config, args: argparse.Namespace) -> int:
 def cmd_status(cfg: Config, _args: argparse.Namespace) -> int:
     state = load_state(cfg.state.path)
     if not state.manifests:
-        print("No state yet — run `datahouse sync` first.")
+        print("No state yet — run `curhouse sync` first.")
         return 0
 
     print(f"Table created: {state.table_created_at or '(unknown)'}")

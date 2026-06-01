@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from datahouse.config import Config, load_config
+from curhouse.config import Config, load_config
 
 
 @pytest.fixture
@@ -54,7 +54,7 @@ def test_load_config_basic(sample_config_path: Path) -> None:
 def test_env_password_overrides_file(
     sample_config_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("DATAHOUSE_CH_PASSWORD", "envpw")
+    monkeypatch.setenv("CURHOUSE_CH_PASSWORD", "envpw")
     cfg = load_config(sample_config_path)
     assert cfg.clickhouse.password == "envpw"
 

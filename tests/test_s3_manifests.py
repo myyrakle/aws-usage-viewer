@@ -4,7 +4,7 @@ import boto3
 import pytest
 from moto import mock_aws
 
-from datahouse.aws.s3_manifests import (
+from curhouse.aws.s3_manifests import (
     ManifestInfo,
     extract_billing_period,
     is_period_manifest,

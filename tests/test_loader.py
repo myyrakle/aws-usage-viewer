@@ -1,4 +1,4 @@
-from datahouse.clickhouse.loader import (
+from curhouse.clickhouse.loader import (
     build_drop_partition_sql,
     build_insert_from_s3_sql,
     build_s3_url,

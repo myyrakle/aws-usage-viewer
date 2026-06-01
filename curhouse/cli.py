@@ -5,12 +5,12 @@ import logging
 import sys
 from pathlib import Path
 
-from datahouse.config import load_config
+from curhouse.config import load_config
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="datahouse",
+        prog="curhouse",
         description="AWS CUR 2.0 to local ClickHouse loader",
     )
     sub = parser.add_subparsers(dest="command", required=True)
@@ -67,7 +67,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     # 서브커맨드별 핸들러 (commands.py는 Task 11에서 추가)
-    from datahouse import commands
+    from curhouse import commands
 
     handler = {
         "setup": commands.cmd_setup,

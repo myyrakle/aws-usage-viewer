@@ -1,5 +1,5 @@
 [project]
-name = "datahouse"
+name = "curhouse"
 version = "0.1.0"
 description = "AWS CUR 2.0 to local ClickHouse loader"
 readme = "README.md"
@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [project.scripts]
-datahouse = "datahouse.cli:main"
+curhouse = "curhouse.cli:main"
 
 [tool.uv]
 package = true

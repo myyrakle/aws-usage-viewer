@@ -4,7 +4,7 @@ import boto3
 import pytest
 from moto import mock_aws
 
-from datahouse.aws.cur_setup import (
+from curhouse.aws.cur_setup import (
     build_bucket_policy,
     build_export_definition,
     ensure_s3_bucket,

@@ -5,7 +5,7 @@ from typing import Any
 import clickhouse_connect
 from clickhouse_connect.driver.client import Client
 
-from datahouse.config import ClickhouseConfig
+from curhouse.config import ClickhouseConfig
 
 
 def get_client(cfg: ClickhouseConfig) -> Client:

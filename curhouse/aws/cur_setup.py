@@ -100,7 +100,7 @@ def build_export_definition(
     select = ", ".join(columns)
     return {
         "Name": export_name,
-        "Description": "datahouse CUR 2.0 export",
+        "Description": "curhouse CUR 2.0 export",
         "DataQuery": {
             "QueryStatement": f"SELECT {select} FROM COST_AND_USAGE_REPORT",
             "TableConfigurations": {

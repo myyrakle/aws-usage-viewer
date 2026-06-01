@@ -219,8 +219,9 @@ __marimo__/
 
 docs/superpowers
 
-# datahouse runtime
+# curhouse runtime
 config.toml
+.curhouse-state.json
 .datahouse-state.json
 ch-data/
 metabase-data/

@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from datahouse.state import ManifestRecord, State, load_state, save_state
+from curhouse.state import ManifestRecord, State, load_state, save_state
 
 
 def test_load_state_missing_returns_empty(tmp_path: Path) -> None:

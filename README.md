@@ -26,14 +26,14 @@ cp config.example.toml config.toml
 # config.toml 편집: aws.profile, cur.bucket_name 등
 ```
 
-ClickHouse 비밀번호는 환경변수 `DATAHOUSE_CH_PASSWORD`로 덮어쓸 수 있다.
+ClickHouse 비밀번호는 환경변수 `CURHOUSE_CH_PASSWORD`로 덮어쓸 수 있다.
 
 ## 사용
 
 ### 1. AWS 리소스 프로비저닝 (계정당 한 번)
 
 ```bash
-uv run datahouse setup
+uv run curhouse setup
 ```
 
 S3 버킷과 CUR 2.0 export를 생성한다. 멱등.
@@ -43,7 +43,7 @@ AWS가 첫 데이터를 S3에 떨구는 데 **최대 24시간** 소요.
 ### 2. 데이터 동기
 
 ```bash
-uv run datahouse sync
+uv run curhouse sync
 ```
 
 - 변경된 billing period만 처리
@@ -52,19 +52,19 @@ uv run datahouse sync
 
 특정 period만 강제 재로드:
 ```bash
-uv run datahouse sync --only-period 2026-04
+uv run curhouse sync --only-period 2026-04
 ```
 
 ### 3. 상태 확인
 
 ```bash
-uv run datahouse status
+uv run curhouse status
 ```
 
 ### 4. 테이블만 먼저 생성 (디버깅용)
 
 ```bash
-uv run datahouse init-schema
+uv run curhouse init-schema
 ```
 
 ## 로컬 ClickHouse 실행 예시
@@ -72,7 +72,7 @@ uv run datahouse init-schema
 Docker로 간단하게:
 
 ```bash
-docker run -d --name datahouse-ch \
+docker run -d --name curhouse-ch \
   -p 8123:8123 -p 9000:9000 \
   -v $PWD/ch-data:/var/lib/clickhouse \
   clickhouse/clickhouse-server:latest
@@ -99,7 +99,7 @@ python3 scripts/provision_metabase.py
 스크립트가 멱등(idempotent)하게 수행하는 작업:
 
 1. 첫 실행이면 `/api/setup`으로 어드민 계정 생성, 아니면 로그인
-2. ClickHouse 데이터소스 `datahouse-clickhouse` 등록/갱신
+2. ClickHouse 데이터소스 `curhouse-clickhouse` 등록/갱신
    - host=`host.docker.internal`, port=`8123`, db=`aws_billing` (env로 오버라이드 가능)
 3. Native SQL Question 7개 upsert (이름으로 매칭)
 4. 대시보드 `AWS 비용 대시보드` upsert
@@ -132,7 +132,7 @@ OSS Metabase는 공식 serialization이 막혀있어서 이 스크립트가 git�
 
 ### 필터값 수동 갱신
 
-`datahouse sync`로 새 billing period가 들어왔는데 대시보드 드롭다운에 안 보이면:
+`curhouse sync`로 새 billing period가 들어왔는데 대시보드 드롭다운에 안 보이면:
 
 ```bash
 python3 scripts/provision_metabase.py  # rescan_values 포함
@@ -156,7 +156,7 @@ uv run pytest
 - `setup`: S3 버킷 생성 + 정책 부착 + `bcm-data-exports create-export` 호출. 멱등.
 - `sync`:
   1. S3에서 manifest 목록 조회
-  2. 각 manifest의 ETag와 로컬 `.datahouse-state.json` 비교
+  2. 각 manifest의 ETag와 로컬 `.curhouse-state.json` 비교
   3. 변경된 billing period에 대해:
      - `ALTER TABLE ... DROP PARTITION '<period>'`
      - `INSERT INTO ... SELECT * FROM s3('<url>', '<key>', '<secret>', 'Parquet')`

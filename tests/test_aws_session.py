@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from datahouse.aws.session import get_session
-from datahouse.config import AwsConfig, ClickhouseConfig, Config, CurConfig, StateConfig
+from curhouse.aws.session import get_session
+from curhouse.config import AwsConfig, ClickhouseConfig, Config, CurConfig, StateConfig
 
 
 def _cfg(profile: str = "test-profile") -> Config:

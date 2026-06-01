@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import boto3
 
-from datahouse.config import Config
+from curhouse.config import Config
 
 
 def get_session(config: Config) -> boto3.Session:

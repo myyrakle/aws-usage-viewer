@@ -3,15 +3,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from datahouse.commands import _diff_manifests, cmd_status
-from datahouse.config import (
+from curhouse.commands import _diff_manifests, cmd_status
+from curhouse.config import (
     AwsConfig,
     ClickhouseConfig,
     Config,
     CurConfig,
     StateConfig,
 )
-from datahouse.state import ManifestRecord, State
+from curhouse.state import ManifestRecord, State
 
 
 def _make_cfg(tmp_path) -> Config:
