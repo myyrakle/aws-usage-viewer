@@ -158,6 +158,7 @@ def build_template_tags(
     period_field: int,
     service_field: int,
     resource_field: int,
+    account_field: int,
 ) -> dict:
     return {
         "range_days": {
@@ -196,6 +197,15 @@ def build_template_tags(
             "widget-type": "string/=",
             "default": None,
         },
+        "account_id": {
+            "id": str(uuid.uuid4()),
+            "name": "account_id",
+            "display-name": "Account",
+            "type": "dimension",
+            "dimension": ["field", account_field, None],
+            "widget-type": "string/=",
+            "default": None,
+        },
     }
 
 
@@ -212,7 +222,8 @@ def card_specs() -> list[dict]:
                 "  [[AND {{range_days}}]]\n"
                 "  [[AND {{month}}]]\n"
                 "  [[AND {{service}}]]\n"
-                "  [[AND {{resource_id}}]]"
+                "  [[AND {{resource_id}}]]\n"
+                "  [[AND {{account_id}}]]"
             ),
             "viz": {"column_settings": {json.dumps(["name", "usage_cost"]): USD_FMT}},
             "layout": (0, 0, 8, 4),
@@ -229,6 +240,7 @@ def card_specs() -> list[dict]:
                 "  [[AND {{month}}]]\n"
                 "  [[AND {{service}}]]\n"
                 "  [[AND {{resource_id}}]]\n"
+                "  [[AND {{account_id}}]]\n"
                 "GROUP BY service\n"
                 "ORDER BY cost DESC\n"
                 "LIMIT 10"
@@ -252,6 +264,7 @@ def card_specs() -> list[dict]:
                 "  [[AND {{month}}]]\n"
                 "  [[AND {{service}}]]\n"
                 "  [[AND {{resource_id}}]]\n"
+                "  [[AND {{account_id}}]]\n"
                 "GROUP BY day\n"
                 "ORDER BY day"
             ),
@@ -274,6 +287,7 @@ def card_specs() -> list[dict]:
                 "  [[AND {{month}}]]\n"
                 "  [[AND {{service}}]]\n"
                 "  [[AND {{resource_id}}]]\n"
+                "  [[AND {{account_id}}]]\n"
                 "GROUP BY account\n"
                 "ORDER BY cost DESC"
             ),
@@ -298,6 +312,7 @@ def card_specs() -> list[dict]:
                 "  [[AND {{month}}]]\n"
                 "  [[AND {{service}}]]\n"
                 "  [[AND {{resource_id}}]]\n"
+                "  [[AND {{account_id}}]]\n"
                 "GROUP BY resource, service\n"
                 "ORDER BY cost DESC\n"
                 "LIMIT 20"
@@ -318,6 +333,7 @@ def card_specs() -> list[dict]:
                 "  [[AND {{month}}]]\n"
                 "  [[AND {{service}}]]\n"
                 "  [[AND {{resource_id}}]]\n"
+                "  [[AND {{account_id}}]]\n"
                 "GROUP BY project\n"
                 "ORDER BY cost DESC"
             ),
@@ -342,6 +358,7 @@ def card_specs() -> list[dict]:
                 "  [[AND {{month}}]]\n"
                 "  [[AND {{service}}]]\n"
                 "  [[AND {{resource_id}}]]\n"
+                "  [[AND {{account_id}}]]\n"
                 "GROUP BY usage_type, operation\n"
                 "ORDER BY cost DESC\n"
                 "LIMIT 100"
@@ -403,6 +420,7 @@ def upsert_dashboard(
     month_pid = str(uuid.uuid4())[:8]
     service_pid = str(uuid.uuid4())[:8]
     resource_pid = str(uuid.uuid4())[:8]
+    account_pid = str(uuid.uuid4())[:8]
     parameters = [
         {
             "id": range_pid,
@@ -440,6 +458,15 @@ def upsert_dashboard(
             "values_query_type": "search",
             "isMultiSelect": False,
         },
+        {
+            "id": account_pid,
+            "name": "계정",
+            "slug": "account_id",
+            "type": "string/=",
+            "sectionId": "string",
+            "values_query_type": "list",
+            "isMultiSelect": False,
+        },
     ]
 
     mapping_pairs = [
@@ -447,12 +474,14 @@ def upsert_dashboard(
         (month_pid, "month"),
         (service_pid, "service"),
         (resource_pid, "resource_id"),
+        (account_pid, "account_id"),
     ]
 
     # Card-name → (param_id, source_column_name) for crossfilter click behavior
     crossfilter_by_card = {
         "서비스별 비용 Top 10": (service_pid, "service"),
         "리소스별 비용 Top 20": (resource_pid, "resource"),
+        "계정별 비용": (account_pid, "account"),
     }
     id_to_name = {cid: spec["name"] for spec, cid in zip(specs, card_ids)}
 
@@ -517,14 +546,14 @@ def main() -> int:
     period_field = _field_id(session, db_id, "cur_line_items", "_billing_period")
     service_field = _field_id(session, db_id, "cur_line_items", "line_item_product_code")
     resource_field = _field_id(session, db_id, "cur_line_items", "line_item_resource_id")
+    account_field = _field_id(session, db_id, "cur_line_items", "line_item_usage_account_id")
     print(
-        f"  fields: line_item_usage_start_date={usage_date_field}, "
-        f"_billing_period={period_field}, line_item_product_code={service_field}, "
-        f"line_item_resource_id={resource_field}"
+        f"  fields: usage_start={usage_date_field}, period={period_field}, "
+        f"service={service_field}, resource={resource_field}, account={account_field}"
     )
 
     tags = build_template_tags(
-        usage_date_field, period_field, service_field, resource_field
+        usage_date_field, period_field, service_field, resource_field, account_field
     )
     specs = card_specs()
 
