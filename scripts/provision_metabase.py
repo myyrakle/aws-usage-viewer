@@ -168,7 +168,7 @@ def build_template_tags(
             "type": "dimension",
             "dimension": ["field", usage_date_field, {"base-type": "type/DateTime"}],
             "widget-type": "date/range",
-            "default": "thismonth",
+            "default": None,
         },
         "month": {
             "id": str(uuid.uuid4()),
@@ -366,6 +366,54 @@ def card_specs() -> list[dict]:
             "viz": {"column_settings": {json.dumps(["name", "cost"]): USD_FMT}},
             "layout": (0, 26, 24, 10),
         },
+        # ── Tab: 전체 서비스 ──────────────────────────────────────────
+        {
+            "name": "전체 서비스 (사용량 + 비용)",
+            "display": "table",
+            "sql": (
+                "SELECT line_item_product_code AS service,\n"
+                "       round(sum(line_item_unblended_cost), 2) AS cost,\n"
+                "       round(sum(line_item_usage_amount), 4) AS usage_amount,\n"
+                "       count(DISTINCT line_item_resource_id) AS resources\n"
+                "FROM aws_billing.cur_line_items\n"
+                f"WHERE {COMMON_FILTER}\n"
+                "  [[AND {{range_days}}]]\n"
+                "  [[AND {{month}}]]\n"
+                "  [[AND {{service}}]]\n"
+                "  [[AND {{resource_id}}]]\n"
+                "  [[AND {{account_id}}]]\n"
+                "GROUP BY service\n"
+                "ORDER BY cost DESC"
+            ),
+            "viz": {"column_settings": {json.dumps(["name", "cost"]): USD_FMT}},
+            "layout": (0, 0, 24, 20),
+            "tab": "all_services",
+        },
+        # ── Tab: 전체 리소스 ──────────────────────────────────────────
+        {
+            "name": "전체 리소스",
+            "display": "table",
+            "sql": (
+                "SELECT line_item_resource_id AS resource,\n"
+                "       line_item_product_code AS service,\n"
+                "       line_item_usage_account_id AS account,\n"
+                "       round(sum(line_item_unblended_cost), 2) AS cost,\n"
+                "       round(sum(line_item_usage_amount), 4) AS usage_amount\n"
+                "FROM aws_billing.cur_line_items\n"
+                f"WHERE {COMMON_FILTER}\n"
+                "  AND line_item_resource_id != ''\n"
+                "  [[AND {{range_days}}]]\n"
+                "  [[AND {{month}}]]\n"
+                "  [[AND {{service}}]]\n"
+                "  [[AND {{resource_id}}]]\n"
+                "  [[AND {{account_id}}]]\n"
+                "GROUP BY resource, service, account\n"
+                "ORDER BY cost DESC"
+            ),
+            "viz": {"column_settings": {json.dumps(["name", "cost"]): USD_FMT}},
+            "layout": (0, 0, 24, 24),
+            "tab": "all_resources",
+        },
     ]
     return cards
 
@@ -400,7 +448,6 @@ def upsert_card(session: str, db_id: int, tags: dict, spec: dict) -> int:
 def upsert_dashboard(
     session: str, specs: list[dict], card_ids: list[int]
 ) -> int:
-    layouts = [s["layout"] for s in specs]
     dashboards = _request("GET", "/api/dashboard", session)
     items = dashboards if isinstance(dashboards, list) else dashboards.get("data", [])
     found = next((d for d in items if d["name"] == DASHBOARD_NAME), None)
@@ -428,7 +475,6 @@ def upsert_dashboard(
             "slug": "range_days",
             "type": "date/range",
             "sectionId": "date",
-            "default": "thismonth",
         },
         {
             "id": month_pid,
@@ -485,8 +531,22 @@ def upsert_dashboard(
     }
     id_to_name = {cid: spec["name"] for spec, cid in zip(specs, card_ids)}
 
+    # Tabs (negative placeholder IDs — Metabase reassigns positives).
+    tab_order = [
+        ("overview", "개요"),
+        ("all_services", "전체 서비스"),
+        ("all_resources", "전체 리소스"),
+    ]
+    tab_ids = {key: -(i + 1) for i, (key, _) in enumerate(tab_order)}
+    tabs = [
+        {"id": tab_ids[key], "name": name, "position": i}
+        for i, (key, name) in enumerate(tab_order)
+    ]
+
     dashcards = []
-    for i, (cid, (col, row, sx, sy)) in enumerate(zip(card_ids, layouts)):
+    for i, (spec, cid) in enumerate(zip(specs, card_ids)):
+        col, row, sx, sy = spec["layout"]
+        tab_key = spec.get("tab", "overview")
         viz = {}
         cross = crossfilter_by_card.get(id_to_name.get(cid))
         if cross:
@@ -511,6 +571,7 @@ def upsert_dashboard(
         dashcards.append({
             "id": -(i + 1),
             "card_id": cid,
+            "dashboard_tab_id": tab_ids[tab_key],
             "col": col,
             "row": row,
             "size_x": sx,
@@ -528,9 +589,13 @@ def upsert_dashboard(
 
     _request("PUT", f"/api/dashboard/{dash_id}", session, {
         "parameters": parameters,
+        "tabs": tabs,
         "dashcards": dashcards,
     })
-    print(f"  dashboard[{dash_id}] wired {len(dashcards)} cards + {len(parameters)} params")
+    print(
+        f"  dashboard[{dash_id}] wired {len(dashcards)} cards + "
+        f"{len(tabs)} tabs + {len(parameters)} params"
+    )
     return dash_id
 
 
