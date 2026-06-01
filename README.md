@@ -103,14 +103,16 @@ python3 scripts/provision_metabase.py
    - host=`host.docker.internal`, port=`8123`, db=`aws_billing` (env로 오버라이드 가능)
 3. Native SQL Question 7개 upsert (이름으로 매칭)
 4. 대시보드 `AWS 비용 대시보드` upsert
-   - 상단 필터 (모두 옵셔널, 디폴트 없음, AND 결합):
-     - `단일 날짜` — 캘린더에서 하루 선택 (`line_item_usage_start_date` 기준)
-     - `기간 (범위)` — 캘린더에서 start~end 선택 (같은 컬럼)
-     - `월` — `_billing_period` (`YYYY-MM`) 드롭다운
-     - `서비스` — `line_item_product_code` 드롭다운
+   - 상단 필터:
+     - `기간 (범위)` — 캘린더에서 start~end (`line_item_usage_start_date` 기준). **디폴트 `thismonth`**.
+     - `월` — `_billing_period` (`YYYY-MM`) 단일 선택 드롭다운 (값 클릭 = 즉시 적용)
+     - `서비스` — `line_item_product_code` 단일 선택 드롭다운
+     - `리소스` — `line_item_resource_id` search 위젯 (cardinality 높아 search)
    - 모든 카드에 네 필터 매핑
+   - "서비스별 비용 Top 10" 행 클릭 → `서비스` 필터 자동 설정
+   - "리소스별 비용 Top 20" 행 클릭 → `리소스` 필터 자동 설정 (`click_behavior: crossfilter`)
 
-   > 세 날짜 필터는 같은 시간축을 다른 입력 방식으로 표현. 동시에 두 개 켜면 AND라 의도와 다르게 좁아질 수 있어서, 보통은 **하나만** 사용.
+   > `기간 (범위)`와 `월`은 AND 결합이라, 특정 월 보려면 `기간` 칩의 X로 디폴트(`thismonth`)를 먼저 비우고 `월` 선택.
 5. 필터 값 캐시 재스캔 (`POST /api/database/{id}/rescan_values`)
 
 OSS Metabase는 공식 serialization이 막혀있어서 이 스크립트가 git에 올라가는 "단일 진실원"이에요. GUI에서 카드를 추가/수정해도 다음 스크립트 실행 시 덮어쓰여집니다.
