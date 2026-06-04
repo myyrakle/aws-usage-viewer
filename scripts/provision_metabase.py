@@ -44,6 +44,19 @@ DASHBOARD_NAME = "AWS 비용 대시보드"
 
 COMMON_FILTER = "line_item_line_item_type NOT IN ('Credit', 'Tax', 'Refund')"
 
+# 월초(청구기간 시작일)로 고정되는 비-사용 정기요금 타입.
+# AWS는 특정 사용 시각에 귀속되지 않는 이 비용들의 line_item_usage_start_date를
+# granularity와 무관하게 매월 1일 00:00으로 박아서 내보낸다. 그대로 일별로 집계하면
+# 1일에 거대한 스파이크로 뭉쳐 보이므로, 일별 "추이" 차트에서만 제외한다.
+# (총비용/서비스별 집계에서는 제외하지 않아 실제 청구액과 일치한다.)
+MONTH_PINNED_TYPES = (
+    "'Fee', 'RIFee', 'SavingsPlanRecurringFee', "
+    "'SavingsPlanNegation', 'SavingsPlanUpfrontFee'"
+)
+DAILY_TREND_FILTER = (
+    f"line_item_line_item_type NOT IN ({MONTH_PINNED_TYPES})"
+)
+
 USD_FMT = {
     "number_style": "currency",
     "currency": "USD",
@@ -260,6 +273,7 @@ def card_specs() -> list[dict]:
                 "       round(sum(line_item_unblended_cost), 2) AS cost\n"
                 "FROM aws_billing.cur_line_items\n"
                 f"WHERE {COMMON_FILTER}\n"
+                f"  AND {DAILY_TREND_FILTER}\n"
                 "  [[AND {{range_days}}]]\n"
                 "  [[AND {{month}}]]\n"
                 "  [[AND {{service}}]]\n"
