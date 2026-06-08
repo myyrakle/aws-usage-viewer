@@ -34,9 +34,12 @@ def map_cur_type(cur_type: str, column_name: str) -> str:
             return "LowCardinality(String)"
         return "String"
     if cur_type == "timestamp":
+        # CUR 타임스탬프는 UTC 절대시각이다. TZ를 명시하지 않으면 toDate() 등이
+        # 서버 로컬 TZ로 버킷팅해 AWS의 UTC 청구일과 어긋난다('Asia/Seoul'이면 +9h).
+        # 명시적으로 'UTC'를 박아 조회/필터 타임존을 청구 기준과 일치시킨다.
         if column_name in _ORDER_BY_COLUMNS:
-            return "DateTime64(3)"
-        return "Nullable(DateTime64(3))"
+            return "DateTime64(3, 'UTC')"
+        return "Nullable(DateTime64(3, 'UTC'))"
     if cur_type == "double":
         return "Nullable(Float64)"
     if cur_type == "map":

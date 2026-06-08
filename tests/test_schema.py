@@ -8,13 +8,19 @@ from curhouse.clickhouse.schema import (
 
 
 def test_map_cur_type_basic() -> None:
-    assert map_cur_type("timestamp", "bill_invoice_id") == "Nullable(DateTime64(3))"
+    assert (
+        map_cur_type("timestamp", "bill_invoice_id")
+        == "Nullable(DateTime64(3, 'UTC'))"
+    )
     assert map_cur_type("double", "line_item_unblended_cost") == "Nullable(Float64)"
     assert map_cur_type("map", "resource_tags") == "Map(String, String)"
 
 
 def test_map_cur_type_timestamp_in_order_by_is_non_nullable() -> None:
-    assert map_cur_type("timestamp", "line_item_usage_start_date") == "DateTime64(3)"
+    assert (
+        map_cur_type("timestamp", "line_item_usage_start_date")
+        == "DateTime64(3, 'UTC')"
+    )
 
 
 def test_map_cur_type_string_low_cardinality() -> None:
@@ -40,7 +46,7 @@ def test_manifest_to_ddl_contains_partition_and_engine() -> None:
     ddl = manifest_to_ddl(manifest, "aws_billing", "cur_line_items")
 
     assert "CREATE TABLE IF NOT EXISTS aws_billing.cur_line_items" in ddl
-    assert "`line_item_usage_start_date` DateTime64(3)" in ddl
+    assert "`line_item_usage_start_date` DateTime64(3, 'UTC')" in ddl
     assert "`line_item_usage_account_id` LowCardinality(String)" in ddl
     assert "`line_item_product_code` LowCardinality(String)" in ddl
     assert "`line_item_resource_id` String" in ddl
