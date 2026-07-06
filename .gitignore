@@ -228,3 +228,5 @@ metabase-data/
 
 *.csv
 *.sql
+metabase-pg-data/
+metabase-h2-backup-*.tar.gz
