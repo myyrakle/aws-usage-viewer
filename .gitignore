@@ -230,3 +230,4 @@ metabase-data/
 *.sql
 metabase-pg-data/
 metabase-h2-backup-*.tar.gz
+.curhouse-state.json.bak-*
