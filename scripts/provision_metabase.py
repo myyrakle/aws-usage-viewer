@@ -159,6 +159,7 @@ def build_template_tags(
     service_field: int,
     resource_field: int,
     account_field: int,
+    region_field: int,
 ) -> dict:
     return {
         "range_days": {
@@ -206,6 +207,15 @@ def build_template_tags(
             "widget-type": "string/=",
             "default": None,
         },
+        "region": {
+            "id": str(uuid.uuid4()),
+            "name": "region",
+            "display-name": "Region",
+            "type": "dimension",
+            "dimension": ["field", region_field, None],
+            "widget-type": "string/=",
+            "default": None,
+        },
     }
 
 
@@ -223,7 +233,8 @@ def card_specs() -> list[dict]:
                 "  [[AND {{month}}]]\n"
                 "  [[AND {{service}}]]\n"
                 "  [[AND {{resource_id}}]]\n"
-                "  [[AND {{account_id}}]]"
+                "  [[AND {{account_id}}]]\n"
+                "  [[AND {{region}}]]"
             ),
             "viz": {"column_settings": {json.dumps(["name", "usage_cost"]): USD_FMT}},
             "layout": (0, 0, 8, 4),
@@ -241,6 +252,7 @@ def card_specs() -> list[dict]:
                 "  [[AND {{service}}]]\n"
                 "  [[AND {{resource_id}}]]\n"
                 "  [[AND {{account_id}}]]\n"
+                "  [[AND {{region}}]]\n"
                 "GROUP BY service\n"
                 "ORDER BY cost DESC\n"
                 "LIMIT 10"
@@ -265,6 +277,7 @@ def card_specs() -> list[dict]:
                 "  [[AND {{service}}]]\n"
                 "  [[AND {{resource_id}}]]\n"
                 "  [[AND {{account_id}}]]\n"
+                "  [[AND {{region}}]]\n"
                 "GROUP BY day\n"
                 "ORDER BY day"
             ),
@@ -288,6 +301,7 @@ def card_specs() -> list[dict]:
                 "  [[AND {{service}}]]\n"
                 "  [[AND {{resource_id}}]]\n"
                 "  [[AND {{account_id}}]]\n"
+                "  [[AND {{region}}]]\n"
                 "GROUP BY account\n"
                 "ORDER BY cost DESC"
             ),
@@ -297,6 +311,30 @@ def card_specs() -> list[dict]:
                 "column_settings": {json.dumps(["name", "cost"]): USD_FMT},
             },
             "layout": (0, 4, 8, 8),
+        },
+        {
+            "name": "리전별 비용",
+            "display": "bar",
+            "sql": (
+                "SELECT COALESCE(NULLIF(product_region_code, ''), '(global)') AS region,\n"
+                "       round(sum(line_item_unblended_cost), 2) AS cost\n"
+                "FROM aws_billing.cur_line_items\n"
+                f"WHERE {COMMON_FILTER}\n"
+                "  [[AND {{range_days}}]]\n"
+                "  [[AND {{month}}]]\n"
+                "  [[AND {{service}}]]\n"
+                "  [[AND {{resource_id}}]]\n"
+                "  [[AND {{account_id}}]]\n"
+                "  [[AND {{region}}]]\n"
+                "GROUP BY region\n"
+                "ORDER BY cost DESC"
+            ),
+            "viz": {
+                "graph.dimensions": ["region"],
+                "graph.metrics": ["cost"],
+                "column_settings": {json.dumps(["name", "cost"]): USD_FMT},
+            },
+            "layout": (0, 12, 24, 6),
         },
         {
             "name": "리소스별 비용 Top 20",
@@ -313,12 +351,13 @@ def card_specs() -> list[dict]:
                 "  [[AND {{service}}]]\n"
                 "  [[AND {{resource_id}}]]\n"
                 "  [[AND {{account_id}}]]\n"
+                "  [[AND {{region}}]]\n"
                 "GROUP BY resource, service\n"
                 "ORDER BY cost DESC\n"
                 "LIMIT 20"
             ),
             "viz": {"column_settings": {json.dumps(["name", "cost"]): USD_FMT}},
-            "layout": (0, 12, 24, 8),
+            "layout": (0, 18, 24, 8),
         },
         {
             "name": "user_Project 태그별 비용",
@@ -334,6 +373,7 @@ def card_specs() -> list[dict]:
                 "  [[AND {{service}}]]\n"
                 "  [[AND {{resource_id}}]]\n"
                 "  [[AND {{account_id}}]]\n"
+                "  [[AND {{region}}]]\n"
                 "GROUP BY project\n"
                 "ORDER BY cost DESC"
             ),
@@ -342,7 +382,7 @@ def card_specs() -> list[dict]:
                 "graph.metrics": ["cost"],
                 "column_settings": {json.dumps(["name", "cost"]): USD_FMT},
             },
-            "layout": (0, 20, 24, 6),
+            "layout": (0, 26, 24, 6),
         },
         {
             "name": "서비스 상세 (usage_type · operation)",
@@ -359,12 +399,13 @@ def card_specs() -> list[dict]:
                 "  [[AND {{service}}]]\n"
                 "  [[AND {{resource_id}}]]\n"
                 "  [[AND {{account_id}}]]\n"
+                "  [[AND {{region}}]]\n"
                 "GROUP BY usage_type, operation\n"
                 "ORDER BY cost DESC\n"
                 "LIMIT 100"
             ),
             "viz": {"column_settings": {json.dumps(["name", "cost"]): USD_FMT}},
-            "layout": (0, 26, 24, 10),
+            "layout": (0, 32, 24, 10),
         },
         # ── Tab: 전체 서비스 ──────────────────────────────────────────
         {
@@ -382,6 +423,7 @@ def card_specs() -> list[dict]:
                 "  [[AND {{service}}]]\n"
                 "  [[AND {{resource_id}}]]\n"
                 "  [[AND {{account_id}}]]\n"
+                "  [[AND {{region}}]]\n"
                 "GROUP BY service\n"
                 "ORDER BY cost DESC"
             ),
@@ -407,6 +449,7 @@ def card_specs() -> list[dict]:
                 "  [[AND {{service}}]]\n"
                 "  [[AND {{resource_id}}]]\n"
                 "  [[AND {{account_id}}]]\n"
+                "  [[AND {{region}}]]\n"
                 "GROUP BY resource, service, account\n"
                 "ORDER BY cost DESC"
             ),
@@ -468,6 +511,7 @@ def upsert_dashboard(
     service_pid = str(uuid.uuid4())[:8]
     resource_pid = str(uuid.uuid4())[:8]
     account_pid = str(uuid.uuid4())[:8]
+    region_pid = str(uuid.uuid4())[:8]
     parameters = [
         {
             "id": range_pid,
@@ -513,6 +557,15 @@ def upsert_dashboard(
             "values_query_type": "list",
             "isMultiSelect": False,
         },
+        {
+            "id": region_pid,
+            "name": "리전",
+            "slug": "region",
+            "type": "string/=",
+            "sectionId": "string",
+            "values_query_type": "list",
+            "isMultiSelect": False,
+        },
     ]
 
     mapping_pairs = [
@@ -521,6 +574,7 @@ def upsert_dashboard(
         (service_pid, "service"),
         (resource_pid, "resource_id"),
         (account_pid, "account_id"),
+        (region_pid, "region"),
     ]
 
     # Card-name → (param_id, source_column_name) for crossfilter click behavior
@@ -528,6 +582,7 @@ def upsert_dashboard(
         "서비스별 비용 Top 10": (service_pid, "service"),
         "리소스별 비용 Top 20": (resource_pid, "resource"),
         "계정별 비용": (account_pid, "account"),
+        "리전별 비용": (region_pid, "region"),
     }
     id_to_name = {cid: spec["name"] for spec, cid in zip(specs, card_ids)}
 
@@ -612,13 +667,16 @@ def main() -> int:
     service_field = _field_id(session, db_id, "cur_line_items", "line_item_product_code")
     resource_field = _field_id(session, db_id, "cur_line_items", "line_item_resource_id")
     account_field = _field_id(session, db_id, "cur_line_items", "line_item_usage_account_id")
+    region_field = _field_id(session, db_id, "cur_line_items", "product_region_code")
     print(
         f"  fields: usage_start={usage_date_field}, period={period_field}, "
-        f"service={service_field}, resource={resource_field}, account={account_field}"
+        f"service={service_field}, resource={resource_field}, account={account_field}, "
+        f"region={region_field}"
     )
 
     tags = build_template_tags(
-        usage_date_field, period_field, service_field, resource_field, account_field
+        usage_date_field, period_field, service_field, resource_field, account_field,
+        region_field,
     )
     specs = card_specs()
 
