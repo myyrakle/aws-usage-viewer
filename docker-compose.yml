@@ -50,6 +50,11 @@ services:
       # kept mounted for the one-time H2->Postgres migration + as a backup source
       - ./metabase-data:/metabase-data
     environment:
+      # Cap the JVM heap. By default Metabase sizes max heap to ~1/4 of the
+      # container-visible RAM (~3.9G here), and reserving that on a
+      # memory-saturated colima VM gets it OOM-killed at startup. 1G is plenty
+      # for this small instance (ClickHouse does the heavy lifting).
+      JAVA_OPTS: "-Xmx1g"
       MB_DB_TYPE: postgres
       MB_DB_HOST: metabase-db
       MB_DB_PORT: 5432
