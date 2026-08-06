@@ -86,3 +86,13 @@ def test_get_session_empty_profile_uses_default_chain(fake_aws_credentials_env_o
     credentials = session.get_credentials()
     assert credentials is not None
     assert credentials.access_key == "AKIAENVVARCREDENTIAL"
+
+
+def test_env_credentials_override_stale_profile(
+    fake_aws_credentials_env_only: None,
+) -> None:
+    # A stale config profile that isn't present must not break auth when env
+    # credentials are supplied (the container case). Prior behavior raised
+    # ProfileNotFound; now env credentials win.
+    session = get_session(_cfg(profile="does-not-exist"))
+    assert session.get_credentials().access_key == "AKIAENVVARCREDENTIAL"
