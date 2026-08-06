@@ -82,6 +82,7 @@ services:
       CH_HOST: ${CURHOUSE_CH_HOST:-host.docker.internal}
       CH_PORT: ${CURHOUSE_CH_PORT:-8123}
       CH_USER: ${CURHOUSE_CH_USER:-default}
+      CH_PASSWORD: ${CURHOUSE_CH_PASSWORD:-}
     depends_on:
       metabase:
         condition: service_healthy
