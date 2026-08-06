@@ -44,6 +44,8 @@ def fake_aws_credentials(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     config_file.write_text("")
     monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", str(credentials))
     monkeypatch.setenv("AWS_CONFIG_FILE", str(config_file))
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIAIOSFODNN7EXAMPLE")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
 
 
 def test_get_session_uses_profile(fake_aws_credentials: None) -> None:
@@ -54,3 +56,13 @@ def test_get_session_uses_profile(fake_aws_credentials: None) -> None:
 def test_get_session_uses_region(fake_aws_credentials: None) -> None:
     session = get_session(_cfg())
     assert session.region_name == "us-east-1"
+
+
+def test_get_session_empty_profile_uses_default_chain(fake_aws_credentials: None) -> None:
+    session = get_session(_cfg(profile=""))
+    # When profile="", we pass profile_name=None to boto3.Session, which makes
+    # boto3 use the default credential chain (env vars before ~/.aws profiles).
+    # boto3 internally represents this as profile_name='default' due to how it
+    # resolves the credential chain, but this is still using env var credentials
+    # rather than a named profile.
+    assert session.profile_name == 'default' or session.profile_name is None

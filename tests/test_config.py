@@ -93,3 +93,33 @@ path = "s"
 def test_missing_file_raises(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         load_config(tmp_path / "nope.toml")
+
+
+def test_missing_profile_defaults_empty(tmp_path: Path) -> None:
+    p = tmp_path / "config.toml"
+    p.write_text(
+        """
+[aws]
+region = "us-east-1"
+account_id = "111"
+[cur]
+bucket_name = "b"
+export_name = "e"
+prefix = "p"
+time_granularity = "HOURLY"
+include_resources = true
+include_split_cost_allocation = true
+[clickhouse]
+host = "h"
+port = 8123
+user = "u"
+password = ""
+database = "d"
+table = "t"
+secure = false
+[state]
+path = "s"
+"""
+    )
+    cfg = load_config(p)
+    assert cfg.aws.profile == ""
