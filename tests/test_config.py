@@ -123,3 +123,21 @@ path = "s"
     )
     cfg = load_config(p)
     assert cfg.aws.profile == ""
+
+
+def test_env_ch_host_port_override(
+    sample_config_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CURHOUSE_CH_HOST", "clickhouse")
+    monkeypatch.setenv("CURHOUSE_CH_PORT", "9000")
+    cfg = load_config(sample_config_path)
+    assert cfg.clickhouse.host == "clickhouse"
+    assert cfg.clickhouse.port == 9000
+
+
+def test_env_state_path_override(
+    sample_config_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CURHOUSE_STATE_PATH", "/state/state.json")
+    cfg = load_config(sample_config_path)
+    assert cfg.state.path == "/state/state.json"
