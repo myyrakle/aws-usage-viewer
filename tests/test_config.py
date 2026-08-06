@@ -141,3 +141,11 @@ def test_env_state_path_override(
     monkeypatch.setenv("CURHOUSE_STATE_PATH", "/state/state.json")
     cfg = load_config(sample_config_path)
     assert cfg.state.path == "/state/state.json"
+
+
+def test_env_ch_user_override(
+    sample_config_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CURHOUSE_CH_USER", "readonly")
+    cfg = load_config(sample_config_path)
+    assert cfg.clickhouse.user == "readonly"

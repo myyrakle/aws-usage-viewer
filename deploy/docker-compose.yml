@@ -53,6 +53,7 @@ services:
     environment:
       CURHOUSE_CH_HOST: ${CURHOUSE_CH_HOST:-host.docker.internal}
       CURHOUSE_CH_PORT: ${CURHOUSE_CH_PORT:-8123}
+      CURHOUSE_CH_USER: ${CURHOUSE_CH_USER:-default}
       CURHOUSE_STATE_PATH: /state/state.json
     volumes:
       - ../config.toml:/app/config.toml:ro
@@ -73,6 +74,7 @@ services:
       MB_URL: http://metabase:3000
       CH_HOST: ${CURHOUSE_CH_HOST:-host.docker.internal}
       CH_PORT: ${CURHOUSE_CH_PORT:-8123}
+      CH_USER: ${CURHOUSE_CH_USER:-default}
     depends_on:
       metabase:
         condition: service_healthy
@@ -93,6 +95,7 @@ services:
     environment:
       CURHOUSE_CH_HOST: ${CURHOUSE_CH_HOST:-host.docker.internal}
       CURHOUSE_CH_PORT: ${CURHOUSE_CH_PORT:-8123}
+      CURHOUSE_CH_USER: ${CURHOUSE_CH_USER:-default}
       CURHOUSE_STATE_PATH: /state/state.json
     volumes:
       - ../config.toml:/app/config.toml:ro
