@@ -56,7 +56,14 @@ services:
       CURHOUSE_CH_USER: ${CURHOUSE_CH_USER:-default}
       CURHOUSE_STATE_PATH: /state/state.json
     volumes:
-      - ../config.toml:/app/config.toml:ro
+      # fail clearly if config.toml is missing instead of letting Docker
+      # auto-create it as an empty directory (-> confusing IsADirectoryError)
+      - type: bind
+        source: ../config.toml
+        target: /app/config.toml
+        read_only: true
+        bind:
+          create_host_path: false
       - curhouse-state:/state
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -98,7 +105,14 @@ services:
       CURHOUSE_CH_USER: ${CURHOUSE_CH_USER:-default}
       CURHOUSE_STATE_PATH: /state/state.json
     volumes:
-      - ../config.toml:/app/config.toml:ro
+      # fail clearly if config.toml is missing instead of letting Docker
+      # auto-create it as an empty directory (-> confusing IsADirectoryError)
+      - type: bind
+        source: ../config.toml
+        target: /app/config.toml
+        read_only: true
+        bind:
+          create_host_path: false
       - curhouse-state:/state
     depends_on:
       curhouse-sync-init:
