@@ -1,0 +1,14 @@
+<clickhouse>
+    <!-- Local-dev override: the base image restricts the passwordless `default`
+         user to localhost only, which blocks host->container access via the
+         published port (curhouse CLI at localhost:8123, Metabase via
+         host.docker.internal:8123). Allow all networks. Safe here because the
+         port is only published to the local dev machine. -->
+    <users>
+        <default>
+            <networks replace="replace">
+                <ip>::/0</ip>
+            </networks>
+        </default>
+    </users>
+</clickhouse>

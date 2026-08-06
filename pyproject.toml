@@ -15,6 +15,14 @@ curhouse = "curhouse.cli:main"
 [tool.uv]
 package = true
 
+# Only package the Python package tree. The repo root also has a non-Python
+# `clickhouse/` dir (ClickHouse config for docker-compose), which would
+# otherwise trip setuptools flat-layout auto-discovery ("Multiple top-level
+# packages discovered"). This includes curhouse and its subpackages
+# (curhouse.aws, curhouse.clickhouse, ...) while excluding it.
+[tool.setuptools.packages.find]
+include = ["curhouse*"]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",

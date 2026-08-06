@@ -66,18 +66,25 @@ def load_config(path: Path | str) -> Config:
         )
 
     ch_password = os.environ.get("CURHOUSE_CH_PASSWORD", data["clickhouse"]["password"])
+    ch_host = os.environ.get("CURHOUSE_CH_HOST", data["clickhouse"]["host"])
+    ch_port = int(os.environ.get("CURHOUSE_CH_PORT", data["clickhouse"]["port"]))
+    state_path = os.environ.get("CURHOUSE_STATE_PATH", data["state"]["path"])
 
     return Config(
-        aws=AwsConfig(**data["aws"]),
+        aws=AwsConfig(
+            profile=data["aws"].get("profile", ""),
+            region=data["aws"]["region"],
+            account_id=str(data["aws"]["account_id"]),
+        ),
         cur=CurConfig(**data["cur"]),
         clickhouse=ClickhouseConfig(
-            host=data["clickhouse"]["host"],
-            port=int(data["clickhouse"]["port"]),
+            host=ch_host,
+            port=ch_port,
             user=data["clickhouse"]["user"],
             password=ch_password,
             database=data["clickhouse"]["database"],
             table=data["clickhouse"]["table"],
             secure=bool(data["clickhouse"]["secure"]),
         ),
-        state=StateConfig(**data["state"]),
+        state=StateConfig(path=state_path),
     )

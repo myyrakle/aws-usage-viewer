@@ -7,6 +7,6 @@ from curhouse.config import Config
 
 def get_session(config: Config) -> boto3.Session:
     return boto3.Session(
-        profile_name=config.aws.profile,
+        profile_name=config.aws.profile or None,
         region_name=config.aws.region,
     )

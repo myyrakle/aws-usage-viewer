@@ -1,0 +1,2 @@
+# supercronic: run the daily CUR sync at 06:00 (container timezone = UTC)
+0 6 * * * cd /app && curhouse sync
