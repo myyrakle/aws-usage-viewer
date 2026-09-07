@@ -3,14 +3,19 @@ from unittest.mock import MagicMock
 import pytest
 
 from curhouse.clickhouse.loader import (
-    build_create_stage_table_sql,
-    build_drop_stage_table_sql,
+    build_drop_partition_sql,
     build_insert_from_s3_sql,
-    build_replace_partition_sql,
+    build_s3_precheck_count_sql,
     build_s3_url,
     reload_partition,
-    staging_table_name,
 )
+
+
+def test_build_drop_partition_sql() -> None:
+    sql = build_drop_partition_sql("aws_billing", "cur_line_items", "2026-04")
+    assert sql == (
+        "ALTER TABLE aws_billing.cur_line_items DROP PARTITION '2026-04'"
+    )
 
 
 def test_build_s3_url_uses_virtual_hosted_style() -> None:
@@ -40,44 +45,32 @@ def test_build_insert_sql_uses_parameter_placeholders() -> None:
     assert "INSERT INTO aws_billing.cur_line_items" in sql
 
 
-def test_staging_table_name_replaces_hyphen() -> None:
-    # ClickHouse는 identifier에 하이픈 불가
-    assert staging_table_name("cur_line_items", "2026-08") == (
-        "cur_line_items__stage_2026_08"
-    )
+def test_precheck_reads_parquet_footer_only() -> None:
+    # count() 로 Parquet 풋터만 읽어 값 확인 → 스캔·메모리 오버헤드 없음
+    sql = build_s3_precheck_count_sql()
+    assert "count()" in sql
+    assert "FROM s3(" in sql
+    assert "{url:String}" in sql
+    assert "'Parquet'" in sql
 
 
-def test_build_drop_stage_uses_if_exists() -> None:
-    # 이전 실행이 중단돼 남은 스테이징이 있어도 새 실행이 실패하지 않게
-    assert build_drop_stage_table_sql("d", "t__stage_2026_08") == (
-        "DROP TABLE IF EXISTS d.t__stage_2026_08"
-    )
-
-
-def test_build_create_stage_clones_source() -> None:
-    # AS <main> 은 ENGINE/PARTITION BY/ORDER BY까지 복제 →
-    # REPLACE PARTITION FROM 이 요구하는 스키마 동등성 만족
-    sql = build_create_stage_table_sql("d", "t__stage_2026_08", "t")
-    assert sql == "CREATE TABLE d.t__stage_2026_08 AS d.t"
-
-
-def test_build_replace_partition_from_stage() -> None:
-    sql = build_replace_partition_sql("d", "t", "t__stage_2026_08", "2026-08")
-    assert sql == (
-        "ALTER TABLE d.t REPLACE PARTITION '2026-08' FROM d.t__stage_2026_08"
-    )
-
-
-def _fake_client_with_stage_rows(row_count: int) -> MagicMock:
+def _fake_client(precheck_rows: int, main_rows: int = 0) -> MagicMock:
     client = MagicMock()
-    count_result = MagicMock()
-    count_result.result_rows = [(row_count,)]
-    client.query.return_value = count_result
+    calls = {"n": 0}
+
+    def _query_side_effect(*args, **kwargs):
+        calls["n"] += 1
+        result = MagicMock()
+        # 1번째 query = s3() precheck, 2번째 query = main table count
+        result.result_rows = [(precheck_rows if calls["n"] == 1 else main_rows,)]
+        return result
+
+    client.query.side_effect = _query_side_effect
     return client
 
 
-def test_reload_partition_replaces_when_stage_has_rows() -> None:
-    client = _fake_client_with_stage_rows(123)
+def test_reload_partition_drops_and_inserts_when_s3_has_rows() -> None:
+    client = _fake_client(precheck_rows=200_400, main_rows=200_400)
     count = reload_partition(
         client,
         database="d",
@@ -87,22 +80,18 @@ def test_reload_partition_replaces_when_stage_has_rows() -> None:
         access_key="AK",
         secret_key="SK",
     )
-    assert count == 123
+    assert count == 200_400
     commands = [c.args[0] for c in client.command.call_args_list]
-    # DROP IF EXISTS → CREATE stage → INSERT → REPLACE PARTITION → DROP stage
-    assert commands[0] == "DROP TABLE IF EXISTS d.t__stage_2026_08"
-    assert commands[1] == "CREATE TABLE d.t__stage_2026_08 AS d.t"
-    assert "INSERT INTO d.t__stage_2026_08" in commands[2]
-    assert commands[3] == (
-        "ALTER TABLE d.t REPLACE PARTITION '2026-08' FROM d.t__stage_2026_08"
+    # DROP PARTITION → INSERT (precheck 통과했으므로 진행)
+    assert commands[0] == (
+        "ALTER TABLE d.t DROP PARTITION '2026-08'"
     )
-    assert commands[4] == "DROP TABLE IF EXISTS d.t__stage_2026_08"
+    assert "INSERT INTO d.t" in commands[1]
 
 
-def test_reload_partition_raises_and_preserves_main_when_stage_empty() -> None:
-    # 8/30·9/6 사고 회귀 테스트: s3()가 0행 반환해도 원본 파티션이
-    # 통째로 날아가면 안 된다. 예외를 던지고, REPLACE PARTITION은 실행되지 않아야 한다.
-    client = _fake_client_with_stage_rows(0)
+def test_reload_partition_raises_and_skips_drop_when_s3_empty() -> None:
+    # 8/30·9/6 회귀 테스트: s3() precheck가 0을 반환하면 DROP 자체를 안 함
+    client = _fake_client(precheck_rows=0)
     with pytest.raises(RuntimeError, match="S3 returned 0 rows"):
         reload_partition(
             client,
@@ -113,37 +102,10 @@ def test_reload_partition_raises_and_preserves_main_when_stage_empty() -> None:
             access_key="AK",
             secret_key="SK",
         )
+    # DROP PARTITION 절대 호출 안 됨 (원본 보존의 핵심)
     commands = [c.args[0] for c in client.command.call_args_list]
-    # REPLACE PARTITION 절대 호출 안 됨 (원본 보존의 핵심)
-    assert not any("REPLACE PARTITION" in c for c in commands), (
-        f"REPLACE PARTITION must not run on empty stage; got: {commands}"
+    assert not any("DROP PARTITION" in c for c in commands), (
+        f"DROP PARTITION must not run when precheck sees 0 rows; got: {commands}"
     )
-    # 스테이징은 finally에서 정리
-    assert commands[-1] == "DROP TABLE IF EXISTS d.t__stage_2026_09"
-
-
-def test_reload_partition_drops_stage_even_when_insert_fails() -> None:
-    # INSERT가 예외를 던져도 스테이징 테이블은 finally로 정리돼야 한다
-    client = _fake_client_with_stage_rows(0)
-    call_count = {"n": 0}
-
-    def _command_side_effect(*args, **kwargs):
-        call_count["n"] += 1
-        # 3번째 command 호출 (INSERT) 에서 에러
-        if call_count["n"] == 3:
-            raise RuntimeError("simulated S3 auth failure")
-
-    client.command.side_effect = _command_side_effect
-    with pytest.raises(RuntimeError, match="simulated S3 auth failure"):
-        reload_partition(
-            client,
-            database="d",
-            table="t",
-            billing_period="2026-09",
-            s3_url="https://x/*.parquet",
-            access_key="AK",
-            secret_key="SK",
-        )
-    commands = [c.args[0] for c in client.command.call_args_list]
-    # 마지막은 반드시 스테이징 DROP
-    assert commands[-1] == "DROP TABLE IF EXISTS d.t__stage_2026_09"
+    # INSERT도 당연히 안 함
+    assert not any("INSERT" in c for c in commands)
